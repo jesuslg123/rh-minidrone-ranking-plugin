@@ -1,5 +1,3 @@
-import json
-import logging
 from venv import logger
 import RHUtils
 from eventmanager import Evt
@@ -29,16 +27,13 @@ def rank_heat_pos_and_time(rhapi, race_class, _args):
         tuple: A ranked list of pilots and metadata for the leaderboard.
     """
 
-    logging.info("Starting ranking process for heats")
+    logger.debug("Starting ranking process for heats")
 
     heats = rhapi.db.heats_by_class(race_class.id)
     # Reverse the heats to start from the last heat aka the top pilots
     reversed_heats = list(reversed(heats))
 
-    # Print the heats for debugging
-    logging.info(race_class.name)
-    logger.info("Heats:")
-    logger.info(reversed_heats)
+    logger.debug(race_class.name)
 
     # Initialize the leaderboard
     leaderboard = []
@@ -54,8 +49,6 @@ def rank_heat_pos_and_time(rhapi, race_class, _args):
 
     grouped_leaderboard = group_by_heat(leaderboard)  
     temp_leaderboard = swap_on_grouped_board(grouped_leaderboard)
-    logger.info("Grouped leaderboard after swap:")
-    logger.info(temp_leaderboard)
     
     # Flatten the grouped leaderboard back to a single list
     leaderboard = [item for sublist in temp_leaderboard for item in sublist]
@@ -76,91 +69,11 @@ def rank_heat_pos_and_time(rhapi, race_class, _args):
         }]
     }
 
-    logging.info("Ranking process completed")
+    logger.debug("Ranking process completed")
     return leaderboard, meta
-    """
-    Validates and swaps pilots between heats based on lap times and counts.
-
-    Args:
-        heats (list): A list of heats, where each heat contains pilot data including lap times and lap counts.
-
-    Returns:
-        list: Updated rankedboard list.
-    """
-
-    updated_rankedboard = []
-
-    for i in range(len(heats) - 1):
-        current_heat = heats[i]
-        next_heat = heats[i + 1]
-
-        current_heat_result = rhapi.db.heat_results(current_heat)
-
-        logger.info("Current heat result:")
-        logger.info(current_heat_result)
-
-        current_leaderboard_type = current_heat_result['meta']['primary_leaderboard']
-        current_heat_leaderboard = current_heat_result[current_leaderboard_type]
-
-        logger.info("Current heat leaderboard:")
-        logger.info(current_heat_leaderboard)
-        
-        next_heat_result = rhapi.db.heat_results(next_heat)
-        logger.info("Next heat result:")
-        logger.info(next_heat_result)
-
-        next_leaderboard_type = next_heat_result['meta']['primary_leaderboard']
-        next_heat_leaderboard = next_heat_result[next_leaderboard_type]
-
-        # Get the last pilot of the current heat and the first pilot of the next heat
-        last_pilot = current_heat_leaderboard[-1]
-        first_pilot = next_heat_leaderboard[0]
-
-        logger.info("Last pilot of current heat:")
-        logger.info(last_pilot)
-        logger.info("First pilot of next heat:")
-        logger.info(first_pilot)
-
-        # Compare lap counts
-        if last_pilot['laps'] == first_pilot['laps']:
-            # Compare fastest lap times
-            if last_pilot['fastest_lap'] > first_pilot['fastest_lap']:
-                # Swap pilots
-                # Swap pilots on heats
-                current_heat_leaderboard[-1], next_heat_leaderboard[0] = next_heat_leaderboard[0], current_heat_leaderboard[-1]
-                logging.info(f"Swapped pilots due to times: {next_heat_leaderboard[0]['callsign']} with {current_heat_leaderboard[-1]['callsign']}")
-                
-
-                logger.info("Updated heats after swapping:")
-                logger.info(heats)
-        elif last_pilot['laps'] < first_pilot['laps']:
-            # Swap pilots
-            # Swap pilots on heats
-            current_heat_leaderboard[-1], next_heat_leaderboard[0] = next_heat_leaderboard[0], current_heat_leaderboard[-1]
-            logging.info(f"Swapped pilots due to laps: {next_heat_leaderboard[0]['callsign']} with {current_heat_leaderboard[-1]['callsign']}")
-            
-            logger.info("Updated heats after swapping:")
-            logger.info(heats)
-        
-        # Step 2: Append the heat leaderboard to the updated rankedboard using a new method to extract the logic
-        append_to_leaderboard(updated_rankedboard, current_heat, current_heat_leaderboard)
-        for line in current_heat_leaderboard:
-            rank_pos = current_heat_leaderboard.index(line) + 1
-            updated_rankedboard.append({
-                'pilot_id': line['pilot_id'],
-                'callsign': line['callsign'],
-                'team_name': line['team_name'],
-                'heat': current_heat.display_name,
-                'heat_rank': line['position'],
-                'position': rank_pos,
-                'fastest_lap': line['fastest_lap'],
-                'laps': line['laps'],
-            })
-
-    return updated_rankedboard
-
+    
 def initialize(rhapi):
-    logging.info("Initializing MINIDRONE plugin")
+    logger.debug("Initializing MINIDRONE plugin")
     rhapi.events.on(Evt.CLASS_RANK_INITIALIZE, register_handlers)
 
 def append_to_leaderboard(leaderboard, heat, heat_leaderboard):
@@ -210,9 +123,6 @@ def group_by_heat(leaderboard):
     # Convert grouped dictionary to a list of lists
     result = list(grouped.values())
 
-    logger.info("Transformed leaderboard:")
-    logger.info(result)
-
     return result
 
 def swap_on_grouped_board(grouped_leaderboard):
@@ -239,10 +149,10 @@ def swap_on_grouped_board(grouped_leaderboard):
             if last_pilot_current_heat['fastest_lap'] > first_pilot_next_heat['fastest_lap']:
                 # Swap pilots
                 current_heat[-1], next_heat[0] = next_heat[0], current_heat[-1]
-                logging.info(f"Swapped pilots due to times: {next_heat[0]['callsign']} with {current_heat[-1]['callsign']}")
+                logger.debug(f"Swapped pilots due to times: {next_heat[0]['callsign']} with {current_heat[-1]['callsign']}")
         elif last_pilot_current_heat['laps'] < first_pilot_next_heat['laps']:
             # Swap pilots
             current_heat[-1], next_heat[0] = next_heat[0], current_heat[-1]
-            logging.info(f"Swapped pilots due to laps: {next_heat[0]['callsign']} with {current_heat[-1]['callsign']}")
+            logger.debug(f"Swapped pilots due to laps: {next_heat[0]['callsign']} with {current_heat[-1]['callsign']}")
 
     return grouped_leaderboard
