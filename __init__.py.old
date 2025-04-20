@@ -1,0 +1,170 @@
+import json
+import logging
+from venv import logger
+import RHUtils
+from eventmanager import Evt
+from RHRace import StartBehavior
+from Results import RaceClassRankMethod
+
+def register_handlers(args):
+    args['register_fn'](
+        RaceClassRankMethod(
+            "Last Heat Position and lap time - TESTING",
+            rank_heat_pos_and_time,
+            None,
+            None
+        )
+    )
+
+def rank_heat_pos_and_time(rhapi, race_class, _args):
+    """
+    Processes the heats to generate a ranking based on the last heat positions and lap times.
+    
+    Args:
+        heats (list): A list of heats, where each heat contains pilot data including lap times and lap counts.
+
+    Returns:
+        list: A ranked list of pilots based on the processed heats.
+    """
+    
+    logging.info("Starting ranking process for heats")
+    
+    heats = rhapi.db.heats_by_class(race_class.id)
+    # Reverse the heats to start from the last heat aka the top pilots
+    reversed_heats = list(reversed(heats))
+
+    # Print the heats for debugging
+    logging.info(race_class.name)
+    logger.info("Heats:")
+    logger.info(reversed_heats)
+
+    # Step 1: Validate and swap pilots between heats
+    ranked_pilots = validate_and_swap_pilots(rhapi, reversed_heats)
+    logger.info(f"Ranked pilots: {ranked_pilots}")
+
+    meta = {
+        'rank_fields': [{
+            'name': 'heat',
+            'label': "Heat"
+        },{
+            'name': 'fastest_lap',
+            'label': "Fastest Lap"
+        },{
+            'name': 'heat_rank',
+            'label': "Position"
+        }]
+    }
+
+    logging.info("Ranking process completed")
+    return ranked_pilots, meta
+
+def validate_and_swap_pilots(rhapi, heats):
+    """
+    Validates and swaps pilots between heats based on lap times and counts.
+
+    Args:
+        heats (list): A list of heats, where each heat contains pilot data including lap times and lap counts.
+
+    Returns:
+        list: Updated rankedboard list.
+    """
+
+    updated_rankedboard = []
+
+    for i in range(len(heats) - 1):
+        current_heat = heats[i]
+        next_heat = heats[i + 1]
+
+        current_heat_result = rhapi.db.heat_results(current_heat)
+
+        logger.info("Current heat result:")
+        logger.info(current_heat_result)
+
+        current_leaderboard_type = current_heat_result['meta']['primary_leaderboard']
+        current_heat_leaderboard = current_heat_result[current_leaderboard_type]
+
+        logger.info("Current heat leaderboard:")
+        logger.info(current_heat_leaderboard)
+        
+        next_heat_result = rhapi.db.heat_results(next_heat)
+        logger.info("Next heat result:")
+        logger.info(next_heat_result)
+
+        next_leaderboard_type = next_heat_result['meta']['primary_leaderboard']
+        next_heat_leaderboard = next_heat_result[next_leaderboard_type]
+
+        # Get the last pilot of the current heat and the first pilot of the next heat
+        last_pilot = current_heat_leaderboard[-1]
+        first_pilot = next_heat_leaderboard[0]
+
+        logger.info("Last pilot of current heat:")
+        logger.info(last_pilot)
+        logger.info("First pilot of next heat:")
+        logger.info(first_pilot)
+
+        # Compare lap counts
+        if last_pilot['laps'] == first_pilot['laps']:
+            # Compare fastest lap times
+            if last_pilot['fastest_lap'] > first_pilot['fastest_lap']:
+                # Swap pilots
+                # Swap pilots on heats
+                current_heat_leaderboard[-1], next_heat_leaderboard[0] = next_heat_leaderboard[0], current_heat_leaderboard[-1]
+                logging.info(f"Swapped pilots due to times: {next_heat_leaderboard[0]['callsign']} with {current_heat_leaderboard[-1]['callsign']}")
+                
+
+                logger.info("Updated heats after swapping:")
+                logger.info(heats)
+        elif last_pilot['laps'] < first_pilot['laps']:
+            # Swap pilots
+            # Swap pilots on heats
+            current_heat_leaderboard[-1], next_heat_leaderboard[0] = next_heat_leaderboard[0], current_heat_leaderboard[-1]
+            logging.info(f"Swapped pilots due to laps: {next_heat_leaderboard[0]['callsign']} with {current_heat_leaderboard[-1]['callsign']}")
+            
+            logger.info("Updated heats after swapping:")
+            logger.info(heats)
+        
+        # Step 2: Append the heat leaderboard to the updated rankedboard using a new method to extract the logic
+        append_to_leaderboard(updated_rankedboard, current_heat, current_heat_leaderboard)
+        for line in current_heat_leaderboard:
+            rank_pos = current_heat_leaderboard.index(line) + 1
+            updated_rankedboard.append({
+                'pilot_id': line['pilot_id'],
+                'callsign': line['callsign'],
+                'team_name': line['team_name'],
+                'heat': current_heat.display_name,
+                'heat_rank': line['position'],
+                'position': rank_pos,
+                'fastest_lap': line['fastest_lap'],
+                'laps': line['laps'],
+            })
+
+    return updated_rankedboard
+
+def initialize(rhapi):
+    logging.info("Initializing MINIDRONE plugin")
+    rhapi.events.on(Evt.CLASS_RANK_INITIALIZE, register_handlers)
+
+def append_to_leaderboard(leaderboard, heat, heat_leaderboard):
+    """
+    Appends the pilot data to the leaderboard.
+
+    Args:
+        leaderboard (list): The leaderboard to append to.
+        heat (object): The heat object containing heat information.
+        line (dict): The pilot data to append.
+
+    Returns:
+        None
+    """
+    for line in heat_leaderboard:
+        rank_pos = heat_leaderboard.index(line) + 1
+        leaderboard.append({
+            'pilot_id': line['pilot_id'],
+            'callsign': line['callsign'],
+            'team_name': line['team_name'],
+            'heat': 'current_heat.display_name',
+            'heat_rank': line['position'],
+            'position': rank_pos,
+            'fastest_lap': line['fastest_lap'],
+            'laps': line['laps'],
+        })

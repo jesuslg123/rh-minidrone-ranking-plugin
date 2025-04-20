@@ -1,0 +1,15 @@
+{
+    "name": "MiniDrone championship class ranking",
+    "domain": "minidrone",
+    "author": "jesuslg123",
+    "author_uri": "https://github.com/jesuslg123",
+    "description": "Class ranking for MiniDrone championship",
+    "info_uri": "https://github.com/jesuslg123",
+    "license": "minidrone",
+    "license_uri": "https://github.com/RotorHazard/RotorHazard/blob/main/LICENSE",
+    "version": "0.1",
+    "required_rhapi_version": "1.0",
+    "category": [
+        "Race Management"
+    ]
+}
