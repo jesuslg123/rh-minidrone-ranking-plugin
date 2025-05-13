@@ -41,6 +41,9 @@ def rank_heat_pos_and_time(rhapi, race_class, _args):
     # Iterate over all heats in reverse order and generate the leaderboard
     for heat in reversed_heats:
         heat_result = rhapi.db.heat_results(heat)
+        if not heat_result: # No heat result available as are pending
+            logger.debug(f"No heat_result for heat: {heat.display_name}, skipping.")
+            continue
         leaderboard_type = heat_result['meta']['primary_leaderboard']
         heat_leaderboard = heat_result[leaderboard_type]
 
